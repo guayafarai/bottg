@@ -1,11 +1,24 @@
 <?php
 /**
  * ═══════════════════════════════════════════════════════════════
- * SISTEMA DE PAGOS - CLASE PRINCIPAL
+ * SISTEMA DE PAGOS - CLASE PRINCIPAL (CORREGIDO)
  * ═══════════════════════════════════════════════════════════════
  */
 
-require_once(__DIR__ . '/config_pagos.php');
+// Cargar configuración de pagos
+if (file_exists(__DIR__ . '/config_pagos.php')) {
+    require_once(__DIR__ . '/config_pagos.php');
+} else {
+    // Configuración por defecto si no existe el archivo
+    if (!defined('PAGO_YAPE_NUMERO')) define('PAGO_YAPE_NUMERO', '924780239');
+    if (!defined('PAGO_YAPE_NOMBRE')) define('PAGO_YAPE_NOMBRE', 'Victor Aguilar');
+    if (!defined('PAGO_PLIN_NUMERO')) define('PAGO_PLIN_NUMERO', '924780239');
+    if (!defined('PAGO_PLIN_NOMBRE')) define('PAGO_PLIN_NOMBRE', 'Victor Aguilar');
+    if (!defined('PAGO_TIEMPO_EXPIRACION')) define('PAGO_TIEMPO_EXPIRACION', 86400);
+    if (!defined('PAGO_REQUIERE_COMPROBANTE')) define('PAGO_REQUIERE_COMPROBANTE', true);
+    if (!defined('PAGO_NOTIFICAR_ADMIN')) define('PAGO_NOTIFICAR_ADMIN', true);
+    if (!defined('PAGO_CANAL_NOTIFICACIONES')) define('PAGO_CANAL_NOTIFICACIONES', null);
+}
 
 class SistemaPagos {
     private $db;
@@ -13,46 +26,98 @@ class SistemaPagos {
     private $metodos;
     
     public function __construct($database) {
-        global $PAQUETES_CREDITOS, $METODOS_PAGO;
-        
         $this->db = $database;
-        $this->paquetes = $PAQUETES_CREDITOS;
-        $this->metodos = $METODOS_PAGO;
+        $this->inicializarPaquetes();
+        $this->inicializarMetodos();
     }
     
-    /**
-     * Obtiene todos los paquetes disponibles
-     */
+    private function inicializarPaquetes() {
+        // Paquetes predefinidos
+        $this->paquetes = [
+            'basico' => [
+                'creditos' => 50,
+                'precio' => 5.00,
+                'moneda' => 'PEN',
+                'ahorro' => 0,
+                'popular' => false,
+                'emoji' => '📦'
+            ],
+            'estandar' => [
+                'creditos' => 100,
+                'precio' => 9.00,
+                'moneda' => 'PEN',
+                'ahorro' => 10,
+                'popular' => true,
+                'emoji' => '🎁'
+            ],
+            'premium' => [
+                'creditos' => 250,
+                'precio' => 20.00,
+                'moneda' => 'PEN',
+                'ahorro' => 20,
+                'popular' => false,
+                'emoji' => '💎'
+            ],
+            'vip' => [
+                'creditos' => 500,
+                'precio' => 35.00,
+                'moneda' => 'PEN',
+                'ahorro' => 30,
+                'popular' => false,
+                'emoji' => '👑'
+            ]
+        ];
+    }
+    
+    private function inicializarMetodos() {
+        // Métodos de pago disponibles
+        $this->metodos = [
+            'yape' => [
+                'nombre' => 'Yape',
+                'activo' => true,
+                'emoji' => '💜',
+                'instrucciones' => 'Escanea el QR o transfiere al número',
+                'verificacion_automatica' => false
+            ],
+            'plin' => [
+                'nombre' => 'Plin',
+                'activo' => true,
+                'emoji' => '🟣',
+                'instrucciones' => 'Transfiere al número indicado',
+                'verificacion_automatica' => false
+            ],
+            'transferencia' => [
+                'nombre' => 'Transferencia Bancaria',
+                'activo' => true,
+                'emoji' => '🏦',
+                'instrucciones' => 'Realiza la transferencia a la cuenta indicada',
+                'verificacion_automatica' => false,
+                'banco' => 'BCP',
+                'cuenta' => '123-456789-0-12',
+                'cci' => '00212300045678901234',
+                'titular' => 'F4 Mobile'
+            ]
+        ];
+    }
+    
     public function obtenerPaquetes() {
         return $this->paquetes;
     }
     
-    /**
-     * Obtiene información de un paquete específico
-     */
     public function obtenerPaquete($id) {
         return isset($this->paquetes[$id]) ? $this->paquetes[$id] : false;
     }
     
-    /**
-     * Obtiene todos los métodos de pago activos
-     */
     public function obtenerMetodosPago() {
         return array_filter($this->metodos, function($metodo) {
             return $metodo['activo'];
         });
     }
     
-    /**
-     * Obtiene información de un método de pago específico
-     */
     public function obtenerMetodoPago($id) {
         return isset($this->metodos[$id]) ? $this->metodos[$id] : false;
     }
     
-    /**
-     * Crea una nueva orden de pago
-     */
     public function crearOrdenPago($telegramId, $paqueteId, $metodoPago) {
         $paquete = $this->obtenerPaquete($paqueteId);
         $metodo = $this->obtenerMetodoPago($metodoPago);
@@ -61,7 +126,6 @@ class SistemaPagos {
             return false;
         }
         
-        // Generar código único de orden
         $codigoOrden = $this->generarCodigoOrden();
         
         $sql = "INSERT INTO ordenes_pago 
@@ -97,16 +161,10 @@ class SistemaPagos {
         }
     }
     
-    /**
-     * Genera un código único de orden
-     */
     private function generarCodigoOrden() {
         return 'ORD-' . strtoupper(substr(md5(uniqid(rand(), true)), 0, 10));
     }
     
-    /**
-     * Obtiene una orden por su código
-     */
     public function obtenerOrdenPorCodigo($codigoOrden) {
         $sql = "SELECT * FROM ordenes_pago WHERE codigo_orden = :codigo_orden";
         
@@ -115,13 +173,11 @@ class SistemaPagos {
             $stmt->execute([':codigo_orden' => $codigoOrden]);
             return $stmt->fetch(PDO::FETCH_ASSOC);
         } catch(PDOException $e) {
+            error_log("Error al obtener orden por código: " . $e->getMessage());
             return false;
         }
     }
     
-    /**
-     * Obtiene una orden por su ID
-     */
     public function obtenerOrden($ordenId) {
         $sql = "SELECT * FROM ordenes_pago WHERE id = :orden_id";
         
@@ -130,13 +186,11 @@ class SistemaPagos {
             $stmt->execute([':orden_id' => $ordenId]);
             return $stmt->fetch(PDO::FETCH_ASSOC);
         } catch(PDOException $e) {
+            error_log("Error al obtener orden: " . $e->getMessage());
             return false;
         }
     }
     
-    /**
-     * Adjunta comprobante a una orden
-     */
     public function adjuntarComprobante($ordenId, $fileId, $tipoArchivo) {
         $sql = "UPDATE ordenes_pago 
                 SET comprobante_file_id = :file_id,
@@ -159,9 +213,6 @@ class SistemaPagos {
         }
     }
     
-    /**
-     * Aprobar una orden de pago
-     */
     public function aprobarOrden($ordenId, $adminId = null) {
         $orden = $this->obtenerOrden($ordenId);
         
@@ -170,10 +221,8 @@ class SistemaPagos {
         }
         
         try {
-            // Iniciar transacción
             $this->db->conn->beginTransaction();
             
-            // Actualizar estado de la orden
             $sql = "UPDATE ordenes_pago 
                     SET estado = 'aprobada',
                         admin_id = :admin_id,
@@ -186,10 +235,8 @@ class SistemaPagos {
                 ':orden_id' => $ordenId
             ]);
             
-            // Agregar créditos al usuario
             $this->db->actualizarCreditos($orden['telegram_id'], $orden['creditos'], 'add');
             
-            // Registrar transacción
             $this->db->registrarTransaccion(
                 $orden['telegram_id'],
                 'compra',
@@ -198,7 +245,6 @@ class SistemaPagos {
                 $adminId
             );
             
-            // Confirmar transacción
             $this->db->conn->commit();
             
             return true;
@@ -210,9 +256,6 @@ class SistemaPagos {
         }
     }
     
-    /**
-     * Rechazar una orden de pago
-     */
     public function rechazarOrden($ordenId, $motivo = null, $adminId = null) {
         $sql = "UPDATE ordenes_pago 
                 SET estado = 'rechazada',
@@ -236,9 +279,6 @@ class SistemaPagos {
         }
     }
     
-    /**
-     * Cancela una orden de pago
-     */
     public function cancelarOrden($ordenId, $telegramId) {
         $sql = "UPDATE ordenes_pago 
                 SET estado = 'cancelada'
@@ -255,15 +295,14 @@ class SistemaPagos {
             
             return $stmt->rowCount() > 0;
         } catch(PDOException $e) {
+            error_log("Error al cancelar orden: " . $e->getMessage());
             return false;
         }
     }
     
-    /**
-     * Obtiene órdenes pendientes de revisión
-     */
     public function obtenerOrdenesPendientes($limite = 50) {
-        $sql = "SELECT o.*, u.username, u.first_name, u.last_name
+        $sql = "SELECT o.*, u.username, u.first_name, u.last_name,
+                TIMESTAMPDIFF(HOUR, o.fecha_creacion, NOW()) as horas_desde_creacion
                 FROM ordenes_pago o
                 LEFT JOIN usuarios u ON o.telegram_id = u.telegram_id
                 WHERE o.estado = 'revision'
@@ -276,13 +315,11 @@ class SistemaPagos {
             $stmt->execute();
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch(PDOException $e) {
+            error_log("Error al obtener órdenes pendientes: " . $e->getMessage());
             return [];
         }
     }
     
-    /**
-     * Obtiene el historial de órdenes de un usuario
-     */
     public function obtenerHistorialUsuario($telegramId, $limite = 10) {
         $sql = "SELECT * FROM ordenes_pago
                 WHERE telegram_id = :telegram_id
@@ -296,13 +333,11 @@ class SistemaPagos {
             $stmt->execute();
             return $stmt->fetchAll(PDO::FETCH_ASSOC);
         } catch(PDOException $e) {
+            error_log("Error al obtener historial: " . $e->getMessage());
             return [];
         }
     }
     
-    /**
-     * Limpia órdenes expiradas
-     */
     public function limpiarOrdenesExpiradas() {
         $sql = "UPDATE ordenes_pago 
                 SET estado = 'expirada'
@@ -313,13 +348,11 @@ class SistemaPagos {
             $stmt = $this->db->conn->query($sql);
             return $stmt->rowCount();
         } catch(PDOException $e) {
+            error_log("Error al limpiar órdenes expiradas: " . $e->getMessage());
             return 0;
         }
     }
     
-    /**
-     * Genera mensaje de información de pago según el método
-     */
     public function generarMensajePago($orden, $metodo) {
         $paquete = $this->obtenerPaquete($orden['paquete_id']);
         $metodoPago = $this->obtenerMetodoPago($metodo);
@@ -337,7 +370,6 @@ class SistemaPagos {
         
         $mensaje .= "━━━━━━━━━━━━━━━━━━━━━━━━\n\n";
         
-        // Información específica según método de pago
         if ($metodo == 'yape') {
             $mensaje .= "{$metodoPago['emoji']} *PAGAR CON YAPE*\n\n";
             $mensaje .= "📱 *Número:* `" . PAGO_YAPE_NUMERO . "`\n";
