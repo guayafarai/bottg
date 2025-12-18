@@ -1,3 +1,41 @@
+<?php
+require_once(__DIR__ . '/config_panel.php');
+require_once(__DIR__ . '/panel_auth.php');
+
+PanelAuth::iniciarSesion();
+
+$error = '';
+$success = '';
+
+// Si ya está autenticado, redirigir al dashboard
+if (PanelAuth::estaAutenticado()) {
+    if (!headers_sent()) {
+        header('Location: dashboard.php');
+        exit;
+    } else {
+        echo '<script>window.location.href="dashboard.php";</script>';
+        exit;
+    }
+}
+
+// Procesar login
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $username = $_POST['username'] ?? '';
+    $password = $_POST['password'] ?? '';
+    
+    if (PanelAuth::login($username, $password)) {
+        if (!headers_sent()) {
+            header('Location: dashboard.php');
+            exit;
+        } else {
+            echo '<script>window.location.href="dashboard.php";</script>';
+            exit;
+        }
+    } else {
+        $error = 'Usuario o contraseña incorrectos';
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -145,35 +183,6 @@
     </style>
 </head>
 <body>
-    <?php
-    require_once(__DIR__ . '/config_panel.php');
-    require_once(__DIR__ . '/panel_auth.php');
-    
-    PanelAuth::iniciarSesion();
-    
-    $error = '';
-    $success = '';
-    
-    // Si ya está autenticado, redirigir al dashboard
-    if (PanelAuth::estaAutenticado()) {
-        header('Location: dashboard.php');
-        exit;
-    }
-    
-    // Procesar login
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $username = $_POST['username'] ?? '';
-        $password = $_POST['password'] ?? '';
-        
-        if (PanelAuth::login($username, $password)) {
-            header('Location: dashboard.php');
-            exit;
-        } else {
-            $error = 'Usuario o contraseña incorrectos';
-        }
-    }
-    ?>
-    
     <div class="login-container">
         <div class="login-header">
             <div class="logo"><?php echo PANEL_LOGO; ?></div>
@@ -237,10 +246,8 @@
     </div>
     
     <script>
-        // Auto-focus en el input de usuario
         document.getElementById('username').focus();
         
-        // Animación al enviar formulario
         document.querySelector('form').addEventListener('submit', function(e) {
             const btn = this.querySelector('.btn-login');
             btn.innerHTML = '⏳ Validando...';

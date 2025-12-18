@@ -5,11 +5,11 @@
  * ═══════════════════════════════════════════════════════════════
  */
 
-require_once(__DIR__ . '/config_bot.php');
-require_once(__DIR__ . '/config_pagos.php');
+require_once(__DIR__ . '/../config_bot.php');
+require_once(__DIR__ . '/../config_pagos.php');
 require_once(__DIR__ . '/config_panel.php');
 require_once(__DIR__ . '/panel_auth.php');
-require_once(__DIR__ . '/sistema_pagos.php');
+require_once(__DIR__ . '/../sistema_pagos.php');
 
 class PanelAPI {
     private $db;

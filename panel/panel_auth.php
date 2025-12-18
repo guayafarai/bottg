@@ -9,8 +9,17 @@ class PanelAuth {
     
     public static function iniciarSesion() {
         if (session_status() === PHP_SESSION_NONE) {
-            session_name(SESSION_NAME);
-            session_start();
+            // Iniciar output buffering para evitar problemas de headers
+            if (!headers_sent()) {
+                session_name(SESSION_NAME);
+                session_start();
+            } else {
+                // Si ya se enviaron headers, intentar recuperar sesión existente
+                if (isset($_COOKIE[SESSION_NAME])) {
+                    session_id($_COOKIE[SESSION_NAME]);
+                }
+                @session_start();
+            }
         }
     }
     
@@ -42,8 +51,14 @@ class PanelAuth {
         
         session_destroy();
         
-        header('Location: login.php');
-        exit;
+        // Usar JavaScript para redireccionar si headers ya fueron enviados
+        if (headers_sent()) {
+            echo '<script>window.location.href="login.php";</script>';
+            exit;
+        } else {
+            header('Location: login.php');
+            exit;
+        }
     }
     
     public static function estaAutenticado() {
@@ -67,8 +82,14 @@ class PanelAuth {
     
     public static function requerirAuth() {
         if (!self::estaAutenticado()) {
-            header('Location: login.php');
-            exit;
+            // Usar JavaScript si headers ya fueron enviados
+            if (headers_sent()) {
+                echo '<script>window.location.href="login.php";</script>';
+                exit;
+            } else {
+                header('Location: login.php');
+                exit;
+            }
         }
     }
     
@@ -96,10 +117,10 @@ class PanelAuth {
         $logFile = __DIR__ . '/logs/admin_access.log';
         
         if (!is_dir(dirname($logFile))) {
-            mkdir(dirname($logFile), 0755, true);
+            @mkdir(dirname($logFile), 0755, true);
         }
         
-        file_put_contents($logFile, json_encode($log) . "\n", FILE_APPEND);
+        @file_put_contents($logFile, json_encode($log) . "\n", FILE_APPEND);
     }
     
     public static function getUsuarioActual() {
